@@ -408,7 +408,10 @@
             <p class="text-xs text-gray-500">Autor: <strong>${art.author}</strong></p>
           </div>
           <div class="flex items-center gap-2 self-end md:self-center">
-            <button onclick="editArticleWithPassword('${art.id}')" class="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 rounded-lg font-medium transition">
+            <button onclick="deleteDraftDirectly('${art.id}')" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded-lg transition" title="Entwurf löschen">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+            <button onclick="editArticleWithPassword('${art.id}')" class="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg font-medium transition">
               Bearbeiten
             </button>
             <button onclick="publishDraftDirectly('${art.id}')" class="px-3 py-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow transition flex items-center gap-1">
@@ -419,6 +422,16 @@
       `).join('');
 
       lucide.createIcons();
+    }
+
+    // ENTWURF DIREKT LÖSCHEN
+    function deleteDraftDirectly(id) {
+      if (confirm("Möchtest du diesen Entwurf wirklich unwiderruflich löschen?")) {
+        articles = articles.filter(a => a.id !== id);
+        localStorage.setItem('albertus_articles', JSON.stringify(articles));
+        renderDrafts();
+        renderArticles();
+      }
     }
 
     // ENTWURF DIREKT VERÖFFENTLICHEN
