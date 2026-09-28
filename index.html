@@ -102,7 +102,7 @@
     <!-- WILLKOMMENS-BANNER -->
     <div id="welcome-banner" class="p-6 bg-gradient-to-r from-red-800 to-red-950 text-white rounded-xl shadow-lg relative overflow-hidden">
       <div class="relative z-10">
-        <span class="inline-block px-2.5 py-0.5 rounded-full bg-red-700 text-xs font-bold uppercase tracking-wider mb-2">Startbereit</span>
+        <span class="inline-block px-2.5 py-0.5 rounded-full bg-red-700 text-xs font-bold uppercase tracking-wider mb-2">Live-Datenbank aktiv</span>
         <h2 class="text-2xl font-display font-bold mb-2">Willkommen bei der Albertus-Allgemeine!</h2>
         <p class="text-red-100 text-sm max-w-2xl mb-4">
           Dies ist die digitale Plattform unserer Schülerzeitung. Redakteure können sich über den Button <strong>"Admin / Redaktion"</strong> anmelden, um Artikel vorzuschreiben oder zu veröffentlichen.
@@ -117,12 +117,12 @@
     <section>
       <h2 class="text-2xl font-display font-bold mb-6 border-b-2 border-red-700 pb-2 inline-block">Aktuelle Berichte</h2>
       <div id="articles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- Artikel werden dynamisch geladen -->
+        <!-- Artikel werden dynamisch aus Firebase geladen -->
       </div>
 
       <div id="no-articles" class="hidden text-center py-16 text-gray-500">
         <i data-lucide="file-text" class="w-12 h-12 mx-auto mb-3 stroke-1 text-gray-400"></i>
-        <p class="text-lg font-serif">Keine veröffentlichen Artikel gefunden.</p>
+        <p class="text-lg font-serif">Keine veröffentlichten Artikel gefunden.</p>
       </div>
     </section>
 
@@ -139,7 +139,7 @@
       </div>
 
       <div id="team-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        <!-- Redaktionsmitglieder werden dynamisch geladen -->
+        <!-- Redaktionsmitglieder werden dynamisch aus Firebase geladen -->
       </div>
     </section>
 
@@ -155,7 +155,7 @@
         </button>
       </div>
       <div class="p-6 md:p-8 overflow-y-auto font-serif" id="modal-content">
-        <!-- Artikel Details werden dynamisch eingefügt -->
+        <!-- Artikel Details -->
       </div>
     </div>
   </div>
@@ -236,7 +236,7 @@
       </div>
       
       <div class="p-6 overflow-y-auto space-y-4" id="drafts-list-container">
-        <!-- Entwürfe werden hier geladen -->
+        <!-- Entwürfe aus Firebase -->
       </div>
     </div>
   </div>
@@ -285,62 +285,77 @@
     </div>
   </footer>
 
-  <script>
-    // REDAKTIONSPASSWORT
+  <!-- FIREBASE INTEGRATION (MODULE) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+    import { 
+      getFirestore, 
+      collection, 
+      onSnapshot, 
+      doc, 
+      setDoc, 
+      deleteDoc, 
+      updateDoc 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Echte Firebase Konfiguration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEGsSTu361frQd3LbXZl2YWKACr4HfMpM",
+      authDomain: "albertus-allgemeine.firebaseapp.com",
+      projectId: "albertus-allgemeine",
+      storageBucket: "albertus-allgemeine.firebasestorage.app",
+      messagingSenderId: "78865445896",
+      appId: "1:78865445896:web:9974d971c318da3c1f0dbd",
+      measurementId: "G-DRLBYMDT07"
+    };
+
+    // Firebase Initialisieren
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    // Globale Variablen
     const REDAKTION_PASSWORD = "albertus2026";
     let isAuthenticated = false;
-
-    // STANDARD-STARTARTIKEL
-    const initialArticles = [
-      {
-        id: "1",
-        title: "Willkommen zur digitalen Albertus-Allgemeine!",
-        category: "Schule",
-        author: "Chefredaktion",
-        status: "published",
-        date: new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' }),
-        image: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1000&q=80",
-        content: "Herzlich willkommen auf der neuen Online-Plattform unserer Schülerzeitung 'Albertus-Allgemeine'!\n\nHier findet ihr ab sofort regelmäßig Berichte, Interviews, Sportberichte und Meinungsbeiträge aus unserer Schule.\n\nDu möchtest mitmachen oder hast Feedback? Melde dich einfach bei unserer Redaktion!"
-      }
-    ];
-
-    // STANDARD-TEAMMITGLIEDER
-    const initialTeam = [
-      { id: "1", name: "Max Mustermann", role: "Chefredaktion", class: "Q2" },
-      { id: "2", name: "Laura Schmidt", role: "Redaktionsleitung", class: "Q1" },
-      { id: "3", name: "Jonas Weber", role: "Fotografie & Layout", class: "10a" }
-    ];
-
-    let articles = JSON.parse(localStorage.getItem('albertus_articles')) || initialArticles;
-    let team = JSON.parse(localStorage.getItem('albertus_team')) || initialTeam;
+    let articles = [];
+    let team = [];
     let currentCategory = 'alle';
 
-    // DATUM & JAHR SETZEN
+    // UI Initialisierung
     document.getElementById('current-date').innerText = new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     document.getElementById('year').innerText = new Date().getFullYear();
 
-    // DARK MODE TOGGLE
-    const themeToggle = document.getElementById('theme-toggle');
-    themeToggle.addEventListener('click', () => {
+    document.getElementById('theme-toggle').addEventListener('click', () => {
       document.documentElement.classList.toggle('dark');
     });
 
-    // ARTIKEL RENDERN (NUR "published" STATUS FÜR LESER)
-    function renderArticles() {
+    // REALTIME-DATENBANK LISTENERS (FIRESTORE)
+    onSnapshot(collection(db, "articles"), (snapshot) => {
+      articles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderArticles();
+      renderDrafts();
+    });
+
+    onSnapshot(collection(db, "team"), (snapshot) => {
+      team = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderTeam();
+    });
+
+    // ARTIKEL RENDERN
+    window.renderArticles = function() {
       const container = document.getElementById('articles-container');
       const noArticles = document.getElementById('no-articles');
       const searchVal = document.getElementById('search-input').value.toLowerCase();
 
-      // Entwürfe-Zähler aktualisieren
       const draftArticles = articles.filter(a => a.status === 'draft');
       document.getElementById('drafts-count').innerText = draftArticles.length;
 
-      // Nur veröffentlichte Artikel anzeigen
       const publishedArticles = articles.filter(a => (a.status || 'published') === 'published');
 
       const filtered = publishedArticles.filter(art => {
         const matchesCat = currentCategory === 'alle' || art.category === currentCategory;
-        const matchesSearch = art.title.toLowerCase().includes(searchVal) || art.content.toLowerCase().includes(searchVal);
+        const matchesSearch = (art.title || '').toLowerCase().includes(searchVal) || (art.content || '').toLowerCase().includes(searchVal);
         return matchesCat && matchesSearch;
       });
 
@@ -356,14 +371,14 @@
           ${art.image ? `<img src="${art.image}" class="w-full h-48 object-cover" alt="Titelbild">` : ''}
           <div class="p-5 flex flex-col flex-grow">
             <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
-              <span class="font-bold uppercase tracking-wider text-red-700 dark:text-red-400">${art.category}</span>
-              <span>${art.date}</span>
+              <span class="font-bold uppercase tracking-wider text-red-700 dark:text-red-400">${art.category || 'Allgemein'}</span>
+              <span>${art.date || ''}</span>
             </div>
-            <h3 class="font-display font-bold text-xl mb-2 hover:text-red-700 cursor-pointer" onclick="openReadModal('${art.id}')">${art.title}</h3>
-            <p class="font-serif text-gray-600 dark:text-gray-300 text-sm line-clamp-3 mb-4 flex-grow">${art.content}</p>
+            <h3 class="font-display font-bold text-xl mb-2 hover:text-red-700 cursor-pointer" onclick="openReadModal('${art.id}')">${art.title || ''}</h3>
+            <p class="font-serif text-gray-600 dark:text-gray-300 text-sm line-clamp-3 mb-4 flex-grow">${art.content || ''}</p>
             
             <div class="pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs">
-              <span class="font-medium text-gray-700 dark:text-gray-400">Von ${art.author}</span>
+              <span class="font-medium text-gray-700 dark:text-gray-400">Von ${art.author || 'Redaktion'}</span>
               <div class="flex gap-2">
                 ${isAuthenticated ? `
                   <button onclick="editArticleWithPassword('${art.id}')" class="text-gray-400 hover:text-blue-600 p-1" title="Bearbeiten"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
@@ -377,10 +392,10 @@
       `).join('');
 
       lucide.createIcons();
-    }
+    };
 
-    // ENTWÜRFE MODAL RENDERN
-    function renderDrafts() {
+    // ENTWÜRFE RENDERN
+    window.renderDrafts = function() {
       const container = document.getElementById('drafts-list-container');
       const draftArticles = articles.filter(a => a.status === 'draft');
 
@@ -400,12 +415,12 @@
         <div class="bg-amber-50/50 dark:bg-gray-800 p-4 rounded-xl border border-amber-200 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div class="space-y-1">
             <div class="flex items-center gap-2">
-              <span class="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded uppercase">${art.category}</span>
-              <span class="text-xs text-gray-500">Erstellt am ${art.date}</span>
+              <span class="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded uppercase">${art.category || 'Allgemein'}</span>
+              <span class="text-xs text-gray-500">Erstellt am ${art.date || ''}</span>
             </div>
-            <h4 class="font-bold text-base text-gray-900 dark:text-white">${art.title}</h4>
-            <p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 font-serif">${art.content}</p>
-            <p class="text-xs text-gray-500">Autor: <strong>${art.author}</strong></p>
+            <h4 class="font-bold text-base text-gray-900 dark:text-white">${art.title || ''}</h4>
+            <p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 font-serif">${art.content || ''}</p>
+            <p class="text-xs text-gray-500">Autor: <strong>${art.author || ''}</strong></p>
           </div>
           <div class="flex items-center gap-2 self-end md:self-center">
             <button onclick="deleteDraftDirectly('${art.id}')" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded-lg transition" title="Entwurf löschen">
@@ -422,40 +437,19 @@
       `).join('');
 
       lucide.createIcons();
-    }
-
-    // ENTWURF DIREKT LÖSCHEN
-    function deleteDraftDirectly(id) {
-      if (confirm("Möchtest du diesen Entwurf wirklich unwiderruflich löschen?")) {
-        articles = articles.filter(a => a.id !== id);
-        localStorage.setItem('albertus_articles', JSON.stringify(articles));
-        renderDrafts();
-        renderArticles();
-      }
-    }
-
-    // ENTWURF DIREKT VERÖFFENTLICHEN
-    function publishDraftDirectly(id) {
-      const art = articles.find(a => a.id === id);
-      if (art) {
-        art.status = 'published';
-        localStorage.setItem('albertus_articles', JSON.stringify(articles));
-        renderDrafts();
-        renderArticles();
-      }
-    }
+    };
 
     // TEAM RENDERN
-    function renderTeam() {
+    window.renderTeam = function() {
       const container = document.getElementById('team-container');
       container.innerHTML = team.map(member => `
         <div class="bg-white dark:bg-gray-800/60 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-col justify-between relative group shadow-sm">
           <div>
             <div class="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 flex items-center justify-center font-bold text-sm mb-3">
-              ${member.name.charAt(0)}
+              ${(member.name || 'M').charAt(0)}
             </div>
-            <h4 class="font-bold text-sm text-newspaper-900 dark:text-white leading-tight">${member.name}</h4>
-            <p class="text-xs text-red-700 dark:text-red-400 font-medium mt-0.5">${member.role}</p>
+            <h4 class="font-bold text-sm text-newspaper-900 dark:text-white leading-tight">${member.name || ''}</h4>
+            <p class="text-xs text-red-700 dark:text-red-400 font-medium mt-0.5">${member.role || ''}</p>
             ${member.class ? `<p class="text-[11px] text-gray-500 mt-1">Klasse ${member.class}</p>` : ''}
           </div>
           ${isAuthenticated ? `
@@ -467,49 +461,28 @@
       `).join('');
 
       lucide.createIcons();
-    }
+    };
 
-    // PASSWORT PRÜFUNG & LOGIN STATUS UPDATE
-    function checkPassword() {
+    // PASSWORT-PRÜFUNG
+    window.checkPassword = function() {
       if (isAuthenticated) return true;
       const input = prompt("Bitte gib das Redaktions-Passwort ein:");
       if (input === REDAKTION_PASSWORD) {
         isAuthenticated = true;
-        updateAdminUI();
+        document.getElementById('drafts-toggle-btn').classList.remove('hidden');
+        document.getElementById('drafts-toggle-btn').classList.add('flex');
+        document.getElementById('admin-btn-text').innerText = "Neuer Artikel";
+        renderArticles();
+        renderTeam();
         return true;
       } else if (input !== null) {
         alert("Falsches Passwort! Zugriff verweigert.");
       }
       return false;
-    }
+    };
 
-    function updateAdminUI() {
-      if (isAuthenticated) {
-        document.getElementById('drafts-toggle-btn').classList.remove('hidden');
-        document.getElementById('drafts-toggle-btn').classList.add('flex');
-        document.getElementById('admin-btn-text').innerText = "Neuer Artikel";
-      }
-    }
-
-    // ARTIKEL FILTERN & SUCHEN
-    function filterCategory(cat) {
-      currentCategory = cat;
-      document.querySelectorAll('.cat-btn').forEach(btn => {
-        if (btn.innerText.toLowerCase() === cat.toLowerCase() || (cat === 'alle' && btn.innerText.toLowerCase() === 'alle')) {
-          btn.className = "cat-btn active border-b-2 border-red-700 font-semibold text-xs sm:text-sm px-3 py-1 uppercase tracking-wider";
-        } else {
-          btn.className = "cat-btn border-b-2 border-transparent hover:border-gray-400 font-medium text-xs sm:text-sm px-3 py-1 uppercase tracking-wider text-gray-600 dark:text-gray-300";
-        }
-      });
-      renderArticles();
-    }
-
-    function handleSearch() {
-      renderArticles();
-    }
-
-    // ARTIKEL SPEICHERN (PUBLISHED / DRAFT)
-    function saveArticle(e) {
+    // ARTIKEL SPEICHERN (FIRESTORE)
+    window.saveArticle = async function(e) {
       e.preventDefault();
       if (!isAuthenticated && !checkPassword()) return;
 
@@ -521,153 +494,159 @@
       const content = document.getElementById('form-content').value;
       const status = document.getElementById('form-status').value;
 
-      const existingIndex = articles.findIndex(a => a.id === id);
       const articleData = {
-        id,
         title,
         category,
         author,
         image,
         content,
         status,
-        date: new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })
+        date: new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' }),
+        updatedAt: Date.now()
       };
 
-      if (existingIndex >= 0) {
-        articles[existingIndex] = articleData;
-      } else {
-        articles.unshift(articleData);
+      try {
+        await setDoc(doc(db, "articles", id), articleData, { merge: true });
+        closeAdminModal();
+        closeDraftsModal();
+      } catch (err) {
+        alert("Fehler beim Speichern in Firebase: " + err.message);
       }
+    };
 
-      localStorage.setItem('albertus_articles', JSON.stringify(articles));
-      closeAdminModal();
-      closeDraftsModal();
-      renderArticles();
-    }
-
-    // ARTIKEL LÖSCHEN WITH PASSWORD
-    function deleteArticleWithPassword(id) {
+    window.deleteArticleWithPassword = async function(id) {
       if (!checkPassword()) return;
       if (confirm("Möchtest du diesen Artikel wirklich löschen?")) {
-        articles = articles.filter(a => a.id !== id);
-        localStorage.setItem('albertus_articles', JSON.stringify(articles));
-        renderArticles();
+        await deleteDoc(doc(db, "articles", id));
       }
-    }
+    };
 
-    // ARTIKEL BEARBEITEN WITH PASSWORD
-    function editArticleWithPassword(id) {
+    window.deleteDraftDirectly = async function(id) {
+      if (confirm("Möchtest du diesen Entwurf wirklich unwiderruflich löschen?")) {
+        await deleteDoc(doc(db, "articles", id));
+      }
+    };
+
+    window.publishDraftDirectly = async function(id) {
+      await updateDoc(doc(db, "articles", id), { status: 'published' });
+    };
+
+    window.editArticleWithPassword = function(id) {
       if (!checkPassword()) return;
       const art = articles.find(a => a.id === id);
       if (!art) return;
 
       document.getElementById('article-id').value = art.id;
-      document.getElementById('form-title').value = art.title;
-      document.getElementById('form-category').value = art.category;
-      document.getElementById('form-author').value = art.author;
+      document.getElementById('form-title').value = art.title || '';
+      document.getElementById('form-category').value = art.category || 'Schule';
+      document.getElementById('form-author').value = art.author || '';
       document.getElementById('form-image').value = art.image || '';
-      document.getElementById('form-content').value = art.content;
+      document.getElementById('form-content').value = art.content || '';
       document.getElementById('form-status').value = art.status || 'published';
 
       closeDraftsModal();
       openAdminModal();
-    }
+    };
 
-    // TEAM SPEICHERN
-    function saveTeamMember(e) {
+    // TEAM SPEICHERN & LÖSCHEN (FIRESTORE)
+    window.saveTeamMember = async function(e) {
       e.preventDefault();
       if (!isAuthenticated && !checkPassword()) return;
 
+      const id = Date.now().toString();
       const name = document.getElementById('team-name').value;
       const role = document.getElementById('team-role').value;
       const memberClass = document.getElementById('team-class').value;
 
-      team.push({
-        id: Date.now().toString(),
-        name,
-        role,
-        class: memberClass
-      });
+      try {
+        await setDoc(doc(db, "team", id), { name, role, class: memberClass });
+        closeTeamModal();
+      } catch (err) {
+        alert("Fehler beim Speichern: " + err.message);
+      }
+    };
 
-      localStorage.setItem('albertus_team', JSON.stringify(team));
-      closeTeamModal();
-      renderTeam();
-    }
-
-    function deleteTeamMemberWithPassword(id) {
+    window.deleteTeamMemberWithPassword = async function(id) {
       if (!checkPassword()) return;
-      if (confirm("Möchtest du dieses Mitglied wirklich aus dem Team entfernen?")) {
-        team = team.filter(m => m.id !== id);
-        localStorage.setItem('albertus_team', JSON.stringify(team));
-        renderTeam();
+      if (confirm("Möchtest du dieses Mitglied wirklich entfernen?")) {
+        await deleteDoc(doc(db, "team", id));
       }
-    }
+    };
 
-    // MODAL STEUERUNG
-    function openAdminModalWithPassword() {
-      if (checkPassword()) {
-        openAdminModal();
-      }
-    }
+    // FILTER & SUCHE
+    window.filterCategory = function(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        if (btn.innerText.toLowerCase() === cat.toLowerCase() || (cat === 'alle' && btn.innerText.toLowerCase() === 'alle')) {
+          btn.className = "cat-btn active border-b-2 border-red-700 font-semibold text-xs sm:text-sm px-3 py-1 uppercase tracking-wider";
+        } else {
+          btn.className = "cat-btn border-b-2 border-transparent hover:border-gray-400 font-medium text-xs sm:text-sm px-3 py-1 uppercase tracking-wider text-gray-600 dark:text-gray-300";
+        }
+      });
+      renderArticles();
+    };
 
-    function openDraftsModal() {
+    window.handleSearch = function() {
+      renderArticles();
+    };
+
+    // MODAL HELFER
+    window.openAdminModalWithPassword = function() {
+      if (checkPassword()) openAdminModal();
+    };
+
+    window.openDraftsModal = function() {
       if (checkPassword()) {
         renderDrafts();
         document.getElementById('drafts-modal').classList.remove('hidden');
       }
-    }
+    };
 
-    function closeDraftsModal() {
+    window.closeDraftsModal = function() {
       document.getElementById('drafts-modal').classList.add('hidden');
-    }
+    };
 
-    function openTeamModalWithPassword() {
-      if (checkPassword()) {
-        document.getElementById('team-modal').classList.remove('hidden');
-      }
-    }
+    window.openTeamModalWithPassword = function() {
+      if (checkPassword()) document.getElementById('team-modal').classList.remove('hidden');
+    };
 
-    function openAdminModal() {
+    window.openAdminModal = function() {
       document.getElementById('admin-modal').classList.remove('hidden');
-    }
+    };
 
-    function closeAdminModal() {
+    window.closeAdminModal = function() {
       document.getElementById('admin-modal').classList.add('hidden');
       document.getElementById('article-form').reset();
       document.getElementById('article-id').value = '';
-    }
+    };
 
-    function closeTeamModal() {
+    window.closeTeamModal = function() {
       document.getElementById('team-modal').classList.add('hidden');
       document.getElementById('team-form').reset();
-    }
+    };
 
-    function openReadModal(id) {
+    window.openReadModal = function(id) {
       const art = articles.find(a => a.id === id);
       if (!art) return;
 
-      document.getElementById('modal-category').innerText = art.category;
+      document.getElementById('modal-category').innerText = art.category || 'Allgemein';
       document.getElementById('modal-content').innerHTML = `
-        <h2 class="text-3xl md:text-4xl font-display font-bold mb-4">${art.title}</h2>
+        <h2 class="text-3xl md:text-4xl font-display font-bold mb-4">${art.title || ''}</h2>
         <div class="text-xs text-gray-500 mb-6 flex items-center justify-between border-b pb-3 dark:border-gray-800">
-          <span>Von <strong>${art.author}</strong></span>
-          <span>${art.date}</span>
+          <span>Von <strong>${art.author || 'Redaktion'}</strong></span>
+          <span>${art.date || ''}</span>
         </div>
         ${art.image ? `<img src="${art.image}" class="w-full max-h-96 object-cover rounded-xl mb-6" alt="Bild">` : ''}
         <div class="text-lg leading-relaxed space-y-4 whitespace-pre-line text-newspaper-800 dark:text-gray-200">
-          ${art.content}
+          ${art.content || ''}
         </div>
       `;
       document.getElementById('read-modal').classList.remove('hidden');
-    }
+    };
 
-    function closeReadModal() {
+    window.closeReadModal = function() {
       document.getElementById('read-modal').classList.add('hidden');
-    }
-
-    // INIT
-    renderArticles();
-    renderTeam();
+    };
   </script>
 </body>
 </html>
